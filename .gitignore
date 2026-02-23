@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.env
+
+# Node
+node_modules/
+.svelte-kit/
+build/
+.env
+.DS_Store
+
+# Docker
+.docker_data/
