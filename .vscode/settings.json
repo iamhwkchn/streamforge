@@ -1,0 +1,6 @@
+{
+    "python.analysis.extraPaths": [
+        "apps/api"
+    ],
+    "python.defaultInterpreterPath": "/Users/sriramsivaraman/Library/Caches/pypoetry/virtualenvs/streamforge-api-yzgmD1Oa-py3.13/bin/python"
+}

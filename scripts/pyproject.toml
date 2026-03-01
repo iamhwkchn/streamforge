@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "streamforge-scripts"
+version = "0.1.0"
+description = "Utility scripts for StreamForge"
+authors = Sriram Sivaraman
+
+[tool.poetry.dependencies]
+python = "^3.10"
+minio = "^7.2.4"
+polars = "^0.20.7"
+openpyxl = "^3.1.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
