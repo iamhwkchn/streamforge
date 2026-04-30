@@ -26,17 +26,17 @@
 ---
 
 ### Epic S1-E1 — Metadata Catalog API
-**Size:** S (half weekend remaining)
-**Status:** Partially Done
+**Size:** S
+**Status:** Done
 
 | # | Task | Size | Status |
 |---|---|---|---|
 | S1-E1-T1 | Postgres schema: datasets, partitions, features tables | S | Done |
 | S1-E1-T2 | `POST /api/v1/partitions` — register a partition | S | Done |
-| S1-E1-T3 | `GET /api/v1/datasets` — list all datasets | S | To Do |
-| S1-E1-T4 | `GET /api/v1/datasets/{id}/partitions` — list partitions for a dataset | S | To Do |
-| S1-E1-T5 | `GET /api/v1/datasets/{id}/features` — list features for a dataset | S | To Do |
-| S1-E1-T6 | `POST /api/v1/features` — register a feature definition | S | To Do |
+| S1-E1-T3 | `GET /api/v1/datasets` — list all datasets | S | Done |
+| S1-E1-T4 | `GET /api/v1/datasets/{id}/partitions` — list partitions for a dataset | S | Done |
+| S1-E1-T5 | `GET /api/v1/datasets/{id}/features` — list features for a dataset | S | Done |
+| S1-E1-T6 | `POST /api/v1/features` — register a feature definition | S | Done |
 
 ---
 
