@@ -17,6 +17,17 @@ BUCKET_NAME = "raw"
 DATASET_PREFIX = "retail"
 API_BASE_URL = "http://localhost:8000"
 
+COLUMN_RENAME = {
+    "Invoice": "invoice",
+    "StockCode": "stock_code",
+    "Description": "description",
+    "Quantity": "quantity",
+    "InvoiceDate": "invoice_date",
+    "Price": "price",
+    "Customer ID": "customer_id",
+    "Country": "country",
+}
+
 
 def register_partition_with_api(
     api_base_url: str,
@@ -109,7 +120,12 @@ def bootstrap():
 
     # Combine and Partition
     print("Merging all years and creating lake partitions...")
-    full_df = pl.concat(all_data).drop_nulls(subset=["InvoiceDate"])
+    full_df = (
+        pl.concat(all_data)
+        .drop_nulls(subset=["InvoiceDate"])
+        .with_columns(pl.col("Customer ID").cast(pl.Utf8))
+        .rename(COLUMN_RENAME)
+    )
     
     # Group by year/month to create the folder structure
     partitions = full_df.partition_by(["year", "month"], include_key=True)
@@ -117,6 +133,7 @@ def bootstrap():
     for p_df in partitions:
         year = p_df["year"][0]
         month = p_df["month"][0]
+        p_df = p_df.drop(["year", "month"])
         
         # Define the S3 path: retail/year=YYYY/month=MM/data.parquet
         s_path = f"{DATASET_PREFIX}/year={year}/month={month:02d}/data.parquet"

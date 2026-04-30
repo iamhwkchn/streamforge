@@ -47,6 +47,7 @@ services:
       - "8081:8080" # Updated to avoid port 8080 conflict
     volumes:
       - ../../ops/trino/etc:/etc/trino
+      - ../../data/trino-catalog:/data/hive-catalog
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8080/v1/info" ]
       interval: 10s
