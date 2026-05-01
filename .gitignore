@@ -20,4 +20,5 @@ build/
 # Data Persistence (Local Lakehouse State)
 data/minio/
 data/postgres/
+data/trino-catalog/
 data/raw_datasets/
