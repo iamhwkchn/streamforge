@@ -1,8 +1,15 @@
-import { vitePreprocess } from '@sveltejs/vite-plugin-svelte'
+import adapter from '@sveltejs/adapter-static';
 
-/** @type {import("@sveltejs/vite-plugin-svelte").SvelteConfig} */
-export default {
-  // Consult https://svelte.dev/docs#compile-time-svelte-preprocess
-  // for more information about preprocessors
-  preprocess: vitePreprocess(),
-}
+/** @type {import('@sveltejs/kit').Config} */
+const config = {
+	compilerOptions: {
+		runes: ({ filename }) => (filename.split(/[/\\]/).includes('node_modules') ? undefined : true)
+	},
+	kit: {
+		adapter: adapter({
+			fallback: 'index.html'
+		})
+	}
+};
+
+export default config;

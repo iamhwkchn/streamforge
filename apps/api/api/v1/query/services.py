@@ -70,6 +70,7 @@ def _run_query(sql: str, page: int, page_size: int, sort_by: str | None, sort_di
 
 
 async def execute_query(request: QueryRequest) -> QueryResponse:
+    request.sql = request.sql.strip().rstrip(';').strip()
     _assert_read_only(request.sql)
     if request.sort_by:
         _assert_safe_identifier(request.sort_by)
