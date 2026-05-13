@@ -10,9 +10,35 @@ services:
       - --overprovisioned
       - --node-id 0
       - --check=false
+      - --kafka-addr PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:9092
+      - --advertise-kafka-addr PLAINTEXT://redpanda:29092,OUTSIDE://localhost:9092
     ports:
       - "9092:9092"
       - "9644:9644"
+
+  redpanda-console:
+    image: docker.redpanda.com/redpandadata/console:v2.3.8
+    container_name: redpanda-console
+    environment:
+      KAFKA_BROKERS: redpanda:29092
+    ports:
+      - "8082:8080"
+    depends_on:
+      - redpanda
+
+  producer:
+    build:
+      context: ../../apps/ingest
+      dockerfile: Dockerfile
+    container_name: producer
+    environment:
+      REDPANDA_BROKERS: redpanda:29092
+      DATASET_PATH: /data/online_retail_II.xlsx
+    volumes:
+      - ../../data/raw_datasets/online_retail_II.xlsx:/data/online_retail_II.xlsx:ro
+    depends_on:
+      - redpanda
+    restart: on-failure
 
   minio:
     image: minio/minio:RELEASE.2023-10-16T04-13-43Z
