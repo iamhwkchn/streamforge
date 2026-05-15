@@ -23,6 +23,12 @@ export interface Feature {
 	created_at: string;
 }
 
+export interface DatasetMetrics {
+	partition_count: number;
+	total_rows: number;
+	last_ingested_at: string | null;
+}
+
 export interface QueryResult {
 	columns: string[];
 	rows: unknown[][];
@@ -48,6 +54,9 @@ export const getPartitions = (datasetId: string) =>
 
 export const getFeatures = (datasetId: string) =>
 	request<Feature[]>(`/metadata/datasets/${datasetId}/features`);
+
+export const getMetrics = (datasetId: string) =>
+	request<DatasetMetrics>(`/metadata/datasets/${datasetId}/metrics`);
 
 export async function runQuery(
 	sql: string,

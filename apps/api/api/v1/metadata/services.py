@@ -144,6 +144,27 @@ async def list_features_for_dataset(dataset_id: UUID):
     return [dict(row) for row in rows]
 
 
+async def get_dataset_metrics(dataset_id: UUID):
+    pool = await get_db_pool()
+    if not pool:
+        return {"status": "error", "message": "Database Connection Error"}
+
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT
+                COUNT(*)::int            AS partition_count,
+                COALESCE(SUM(row_count), 0)::int AS total_rows,
+                MAX(processed_at)        AS last_ingested_at
+            FROM partitions
+            WHERE dataset_id = $1
+            """,
+            dataset_id,
+        )
+
+    return dict(row)
+
+
 async def register_feature_in_db(payload: FeaturePayload):
     """
     Resolves the dataset by name and inserts a new feature definition record.

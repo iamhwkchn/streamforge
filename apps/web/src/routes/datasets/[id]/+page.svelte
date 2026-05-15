@@ -1,13 +1,14 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
-	import { getDatasets, getPartitions, getFeatures, type Dataset, type Partition, type Feature } from '$lib/api';
+	import { getDatasets, getPartitions, getFeatures, getMetrics, type Dataset, type Partition, type Feature, type DatasetMetrics } from '$lib/api';
 
 	const id = $derived($page.params.id ?? '');
 
 	let dataset = $state<Dataset | null>(null);
 	let partitions = $state<Partition[]>([]);
 	let features = $state<Feature[]>([]);
+	let metrics = $state<DatasetMetrics | null>(null);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 	let activeTab = $state<'partitions' | 'features'>('partitions');
@@ -15,14 +16,16 @@
 	onMount(async () => {
 		if (!id) return;
 		try {
-			const [datasets, parts, feats] = await Promise.all([
+			const [datasets, parts, feats, m] = await Promise.all([
 				getDatasets(),
 				getPartitions(id),
-				getFeatures(id)
+				getFeatures(id),
+				getMetrics(id)
 			]);
 			dataset = datasets.find((d) => d.id === id) ?? null;
 			partitions = parts;
 			features = feats;
+			metrics = m;
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load dataset';
 		} finally {
@@ -68,6 +71,26 @@
 				<p class="mt-1 font-mono text-xs text-gray-400">{dataset.storage_location}</p>
 			{/if}
 		</div>
+
+		<!-- Metrics panel -->
+		{#if metrics}
+			<div class="mb-6 grid grid-cols-3 gap-4">
+				<div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+					<p class="text-xs font-medium uppercase tracking-wider text-gray-500">Partitions</p>
+					<p class="mt-1 text-2xl font-semibold text-gray-900">{metrics.partition_count.toLocaleString()}</p>
+				</div>
+				<div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+					<p class="text-xs font-medium uppercase tracking-wider text-gray-500">Total Rows</p>
+					<p class="mt-1 text-2xl font-semibold text-gray-900">{metrics.total_rows.toLocaleString()}</p>
+				</div>
+				<div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+					<p class="text-xs font-medium uppercase tracking-wider text-gray-500">Last Ingested</p>
+					<p class="mt-1 text-2xl font-semibold text-gray-900">
+						{metrics.last_ingested_at ? fmt(metrics.last_ingested_at) : '—'}
+					</p>
+				</div>
+			</div>
+		{/if}
 
 		<!-- Tabs -->
 		<div class="mb-6 border-b border-gray-200">

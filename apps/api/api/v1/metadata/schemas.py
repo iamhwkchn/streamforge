@@ -36,3 +36,9 @@ class FeatureResponse(BaseModel):
     sql_definition: str
     dataset_id: UUID
     created_at: datetime
+
+
+class DatasetMetrics(BaseModel):
+    partition_count: int
+    total_rows: int
+    last_ingested_at: datetime | None

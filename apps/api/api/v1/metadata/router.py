@@ -2,6 +2,7 @@ from uuid import UUID
 from fastapi import APIRouter
 from api.v1.metadata.schemas import FeaturePayload, PartitionPayload
 from api.v1.metadata.services import (
+    get_dataset_metrics,
     list_datasets,
     list_features_for_dataset,
     list_partitions_for_dataset,
@@ -24,6 +25,22 @@ async def get_datasets():
         - created_at      (datetime)
     """
     return await list_datasets()
+
+
+@router.get("/datasets/{dataset_id}/metrics", summary="Ingestion metrics for a dataset")
+async def get_metrics(dataset_id: UUID):
+    """
+    Returns aggregated ingestion metrics for the given dataset.
+
+    Path param:
+        - dataset_id (UUID) — the dataset to query
+
+    Response:
+        - partition_count  (int)           — number of registered partitions
+        - total_rows       (int)           — sum of row_count across all partitions
+        - last_ingested_at (datetime|null) — timestamp of the most recent partition write
+    """
+    return await get_dataset_metrics(dataset_id)
 
 
 @router.get("/datasets/{dataset_id}/partitions", summary="List partitions for a dataset")

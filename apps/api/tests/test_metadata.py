@@ -124,6 +124,54 @@ class TestListFeatures:
 
 
 # ---------------------------------------------------------------------------
+# GET /datasets/{id}/metrics
+# ---------------------------------------------------------------------------
+
+class TestDatasetMetrics:
+    """GET /api/v1/metadata/datasets/{id}/metrics — aggregated ingestion metrics."""
+
+    async def test_status_200_with_valid_id(self, client, retail_events_id):
+        resp = await client.get(f"{BASE}/datasets/{retail_events_id}/metrics")
+        assert resp.status_code == 200
+
+    async def test_response_has_required_fields(self, client, retail_events_id):
+        resp = await client.get(f"{BASE}/datasets/{retail_events_id}/metrics")
+        body = resp.json()
+        assert "partition_count" in body
+        assert "total_rows" in body
+        assert "last_ingested_at" in body
+
+    async def test_unknown_dataset_returns_zero_counts(self, client):
+        resp = await client.get(f"{BASE}/datasets/{UNKNOWN_UUID}/metrics")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["partition_count"] == 0
+        assert body["total_rows"] == 0
+        assert body["last_ingested_at"] is None
+
+    async def test_counts_reflect_inserted_partitions(self, client, db_pool, retail_events_id):
+        """Seeds two partitions, verifies metrics aggregate them, then cleans up."""
+        paths = [
+            "s3a://raw/retail/test/metrics_a.parquet",
+            "s3a://raw/retail/test/metrics_b.parquet",
+        ]
+        try:
+            for path in paths:
+                await db_pool.execute(
+                    "INSERT INTO partitions (dataset_id, partition_path, row_count) VALUES ($1, $2, $3)",
+                    retail_events_id, path, 50,
+                )
+            resp = await client.get(f"{BASE}/datasets/{retail_events_id}/metrics")
+            body = resp.json()
+            assert body["partition_count"] >= 2
+            assert body["total_rows"] >= 100
+            assert body["last_ingested_at"] is not None
+        finally:
+            for path in paths:
+                await db_pool.execute("DELETE FROM partitions WHERE partition_path = $1", path)
+
+
+# ---------------------------------------------------------------------------
 # POST /partitions
 # ---------------------------------------------------------------------------
 
