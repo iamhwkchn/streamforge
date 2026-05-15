@@ -1,10 +1,10 @@
-# Streaming Ingestion Pipeline (v1.0)
+# Streaming Ingestion Pipeline (v2.0)
 
 ## 1. Abstract
 
 The Streaming Ingestion Pipeline is the live data path of StreamForge. Where the bootstrap script loads a static snapshot of the Online Retail II dataset into MinIO once, the streaming pipeline replays that same dataset row-by-row through Redpanda (Kafka-compatible) to simulate a continuously active retail system.
 
-The pipeline has three components: a **Producer** that reads the source XLSX and publishes one event per transaction, **Redpanda** acting as a durable ordered message buffer, and a **Consumer** (S2-E2) that accumulates events into micro-batches and writes them as Parquet files to MinIO, registering each partition in the metadata catalog.
+The pipeline has three components: a **Producer** that reads the source XLSX and publishes one event per transaction, **Redpanda** acting as a durable ordered message buffer, and a **Consumer** that accumulates events into micro-batches, merges them with any existing Parquet partition, deduplicates, writes back to MinIO, and upserts each partition registration in the metadata catalog.
 
 ---
 
@@ -12,14 +12,15 @@ The pipeline has three components: a **Producer** that reads the source XLSX and
 
 ### Goals
 * **Event Semantics**: Each retail transaction is an independent, immutable Kafka message. One row = one message.
-* **Fault Tolerance**: The consumer can crash and restart without losing or duplicating data, using Kafka offset commits as its checkpoint.
-* **Decoupled Rate**: The producer and consumer operate at independent rates. The consumer controls how large its Parquet micro-batches are; the producer doesn't care.
+* **Fault Tolerance**: The consumer can crash and restart without losing or duplicating data. Offsets commit only after a successful write-and-register cycle.
+* **Idempotent Partitions**: Running ingestion twice on the same data produces the same Parquet files and the same row counts in the catalog. Duplicate events are removed via `.unique()` at write time.
+* **Decoupled Rate**: The producer and consumer operate at independent rates. The consumer controls micro-batch size; the producer doesn't care.
 * **Local-first**: Everything runs on a laptop via Docker Compose. No cloud dependencies.
 
 ### Non-Goals
-* **Exactly-once delivery**: We target at-least-once. Duplicate handling in the consumer is out of scope for Stage 2.
 * **Schema Registry**: Message schemas are agreed upon implicitly. A formal Avro/Protobuf schema registry is out of scope.
 * **Multiple Partitions / Parallelism**: Redpanda is configured as a single-node, single-partition setup for simplicity.
+* **Row-level Lineage**: The consumer overwrites each Hive partition on every flush. Per-batch audit trails are out of scope.
 
 ---
 
@@ -27,11 +28,12 @@ The pipeline has three components: a **Producer** that reads the source XLSX and
 
 ```mermaid
 flowchart LR
-    A[XLSX File\nonline_retail_II.xlsx] -->|row-by-row, 100/sec| B(Producer\nproducer.py)
+    A[XLSX File\nonline_retail_II.xlsx] -->|row-by-row, 10k/sec| B(Producer\nproducer.py)
     B -->|JSON event| C[[Redpanda\nretail.events topic]]
     C -->|poll micro-batch| D(Consumer\nconsumer.py)
-    D -->|write Parquet| E[MinIO\ns3a://raw/retail/...]
-    D -->|POST /partitions| F(FastAPI Catalog)
+    D -->|read existing Parquet| E[MinIO\ns3a://raw/retail/...]
+    D -->|merge + write Parquet| E
+    D -->|POST /partitions upsert| F(FastAPI Catalog)
     F -->|persist| G[(Postgres)]
     E -->|SQL query| H[Trino]
     H --> I[SvelteKit UI]
@@ -45,9 +47,9 @@ flowchart LR
 
 The producer reads the full XLSX dataset into memory using Polars at startup, sorts rows by `invoice_date` ascending (oldest first), then iterates row by row, publishing each as a JSON event to the `retail.events` topic.
 
-**Publish rate:** `EVENTS_PER_SECOND = 100`. The producer sleeps `1 / EVENTS_PER_SECOND` seconds between each send. At 100/sec, the ~1M row dataset replays in roughly 3 hours — a realistic simulation of a busy retail day.
+**Publish rate:** Controlled by `EVENTS_PER_SECOND` (default `100`, Docker Compose sets `10000`). The producer sleeps `1 / EVENTS_PER_SECOND` seconds between each send. At 10k/sec, the ~1.07M row dataset replays in roughly 2 minutes.
 
-**Broker address:** Resolved from the `REDPANDA_BROKERS` environment variable (default: `localhost:9092`). When running in Docker Compose, this is overridden to `redpanda:29092` (internal listener).
+**Broker address:** Resolved from `REDPANDA_BROKERS` (default: `localhost:9092`). In Docker Compose this is overridden to `redpanda:29092` (internal listener).
 
 **Message schema:**
 ```json
@@ -63,7 +65,7 @@ The producer reads the full XLSX dataset into memory using Polars at startup, so
 }
 ```
 
-Fields map directly to the renamed columns from `scripts/bootstrap_lake.py`. `customer_id` may be `null` (some transactions have no registered customer).
+`customer_id` may be `null` (some transactions have no registered customer). All fields are serialized as strings in JSON; the consumer casts types on ingest.
 
 ### 4.2. Redpanda (Kafka)
 
@@ -76,44 +78,129 @@ Redpanda runs as a single-node broker with two listeners:
 
 Topic `retail.events` is auto-created on first produce with Redpanda's default settings (1 partition, replication factor 1).
 
-### 4.3. The Consumer (S2-E2 — not yet implemented)
+### 4.3. The Consumer
 
-The consumer accumulates messages from `retail.events` into micro-batches and flushes to Parquet when either:
-- The batch reaches N rows (configurable, e.g. 500), or
-- A time window elapses (e.g. 30 seconds)
+The consumer accumulates messages from `retail.events` into micro-batches and flushes when either:
+- The batch reaches `BATCH_SIZE` records, or
+- `BATCH_TIMEOUT_SECS` elapses — whichever comes first.
 
-After writing the Parquet file to MinIO, it calls `POST /api/v1/metadata/partitions` to register the new partition, then commits its Kafka offset. This is the checkpoint — a crash before the commit means the batch is reprocessed; a crash after means the partition is safely registered.
+**Batch collection (`collect_batch`):**
+The consumer polls in a tight loop with a 500 ms per-poll cap, accumulating messages across multiple poll calls until the batch limit or deadline is reached. The KafkaConsumer is configured with `max_partition_fetch_bytes=10MB` and `fetch_max_bytes=100MB` to allow large fetches when a backlog exists.
+
+**Parsing (`parse_batch`):**
+Raw JSON dicts are loaded into a Polars DataFrame with an explicit all-`Utf8` schema to avoid type inference failures when `customer_id` is null in early rows. Then:
+- `quantity` → `Int64`
+- `price` → `Float64`
+- `invoice_date` → `Datetime` (format `%Y-%m-%dT%H:%M:%S`), rows with unparseable dates are dropped
+- `year`, `month` columns derived from `invoice_date`
+
+**Partition write (read-merge-append):**
+The batch DataFrame is grouped by `(year, month)`. For each group:
+1. Download the existing `retail/year=Y/month=MM/data.parquet` from MinIO (if it exists).
+2. Concatenate existing + new rows, deduplicate with `.unique()`.
+3. Write the merged DataFrame back to MinIO (overwrite).
+4. `POST /api/v1/metadata/partitions` — the API upserts: new path → INSERT, existing path → UPDATE `row_count` + `processed_at`.
+
+This makes ingestion **idempotent**: running the producer + consumer twice over the same data yields the same Parquet files and the same row counts.
+
+**Object path convention:**
+```
+s3a://raw/retail/year={YYYY}/month={MM}/data.parquet
+```
 
 ### 4.4. Offset Commit & Crash Recovery
 
-Kafka consumer groups track offsets per topic-partition. On restart, the consumer resumes from the last committed offset. This means:
-- **No data loss**: uncommitted messages stay in Redpanda and are redelivered.
-- **At-least-once**: if the consumer crashes after writing Parquet but before committing, the same rows are reprocessed and a duplicate Parquet file may be written. Deduplication is a future concern.
+`enable_auto_commit=False` — offsets are committed manually at the end of each batch loop, only after all partitions in the batch have been successfully written and registered. This guarantees:
+
+- **No data loss**: uncommitted messages stay in Redpanda and are redelivered on restart.
+- **At-least-once with idempotent writes**: if the consumer crashes after writing Parquet but before committing, the same rows are reprocessed. The read-merge-dedup pattern makes re-processing safe — `.unique()` removes any duplicates introduced by replay.
 
 ---
 
 ## 5. Alternatives Considered
 
+### Alternative: Overwrite partition on each batch
+Write each batch directly to MinIO without reading the existing file — simpler and faster, but loses previously ingested rows from the same `(year, month)` partition if the batch doesn't contain all of them.
+
+* **Pros**: No MinIO read overhead per batch.
+* **Cons**: Non-idempotent. Two consecutive batches covering the same partition will cause data loss on the first partition's data.
+* **Decision**: Read-merge-append. The MinIO read overhead is acceptable at batch granularity and makes the pipeline safe to replay.
+
 ### Alternative: Batch ETL every 4 hours
-Run a script on a cron schedule that extracts a delta (e.g. rows with `invoice_date > last_run`), writes directly to MinIO, and registers partitions — no Kafka needed.
+Run a script on a cron schedule that extracts a delta, writes directly to MinIO — no Kafka needed.
 
 * **Pros**: Much simpler. No broker to operate. Lower resource usage.
-* **Cons**: Data latency is hours, not seconds. No replay capability. No decoupling between producer and consumer pace. No fan-out (a second consumer would need its own polling logic).
+* **Cons**: Data latency is hours, not seconds. No replay capability. No decoupling between producer and consumer pace.
 * **Decision**: StreamForge is explicitly a streaming lakehouse learning project. Kafka is the point.
 
 ### Alternative: Mini-batch per Kafka message (50–100 rows/message)
-Pack multiple rows into a single JSON array per Kafka message instead of one row per message.
+Pack multiple rows into a single JSON array per Kafka message.
 
-* **Pros**: Reduces message count ~50–100x. Lower per-message overhead.
-* **Cons**: Loses event semantics. Consumer must unpack arrays before processing. Harder to replay individual events. Breaks the standard streaming pattern.
-* **Decision**: One row per message. Kafka handles high message rates efficiently. kafka-python batches internally on the wire via `batch_size` and `linger_ms` anyway.
+* **Pros**: Reduces message count ~50–100x.
+* **Cons**: Loses event semantics. Harder to replay individual events.
+* **Decision**: One row per message. kafka-python batches internally on the wire anyway.
 
 ---
 
 ## 6. Configuration Reference
 
+### Producer
+
 | Variable | Default | Description |
 |---|---|---|
 | `REDPANDA_BROKERS` | `localhost:9092` | Kafka bootstrap servers |
 | `DATASET_PATH` | `data/raw_datasets/online_retail_II.xlsx` | Source XLSX path |
-| `EVENTS_PER_SECOND` | `100` (code constant) | Producer publish rate |
+| `EVENTS_PER_SECOND` | `100` | Publish rate (Docker Compose sets `10000`) |
+
+### Consumer
+
+| Variable | Default | Description |
+|---|---|---|
+| `REDPANDA_BROKERS` | `localhost:9092` | Kafka bootstrap servers |
+| `MINIO_ENDPOINT` | `localhost:9000` | MinIO host:port |
+| `MINIO_ACCESS_KEY` | `minioadmin` | MinIO access key |
+| `MINIO_SECRET_KEY` | `minioadmin` | MinIO secret key |
+| `MINIO_BUCKET` | `raw` | Target bucket |
+| `API_BASE_URL` | `http://localhost:8000` | Metadata catalog base URL |
+| `BATCH_SIZE` | `50000` | Max records per micro-batch |
+| `BATCH_TIMEOUT_SECS` | `5` | Max seconds to wait before flushing |
+
+---
+
+## 7. Running the Pipeline
+
+### Fresh start (recommended)
+```bash
+# 1. Wipe Postgres data and MinIO data
+rm -rf data/postgres data/minio
+
+# 2. Start infrastructure
+docker compose -f ops/docker/docker-compose.yml up -d redpanda minio postgres api trino redpanda-console
+
+# 3. Replay events
+docker compose -f ops/docker/docker-compose.yml up -d producer
+
+# 4. Start consumer
+docker compose -f ops/docker/docker-compose.yml up -d consumer
+
+# 5. Watch progress
+docker logs consumer -f
+```
+
+### Verify
+```bash
+# Check consumer group lag (should reach 0 when done)
+docker compose -f ops/docker/docker-compose.yml exec redpanda rpk group describe streamforge-consumer
+
+# List Parquet partitions in MinIO
+docker compose -f ops/docker/docker-compose.yml exec minio \
+  sh -c 'mc alias set local http://localhost:9000 minioadmin minioadmin --quiet && mc ls --recursive local/raw/retail/'
+
+# Check partition row counts via API
+curl http://localhost:8000/api/v1/metadata/datasets/{id}/partitions
+```
+
+### Wind down
+```bash
+docker compose -f ops/docker/docker-compose.yml down
+```

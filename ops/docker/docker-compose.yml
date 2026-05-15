@@ -34,10 +34,33 @@ services:
     environment:
       REDPANDA_BROKERS: redpanda:29092
       DATASET_PATH: /data/online_retail_II.xlsx
+      EVENTS_PER_SECOND: "10000"
     volumes:
       - ../../data/raw_datasets/online_retail_II.xlsx:/data/online_retail_II.xlsx:ro
     depends_on:
       - redpanda
+    restart: on-failure
+
+  consumer:
+    build:
+      context: ../../apps/ingest
+      dockerfile: Dockerfile
+    container_name: consumer
+    command: ["python", "consumer.py"]
+    environment:
+      REDPANDA_BROKERS: redpanda:29092
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: raw
+      API_BASE_URL: http://api:8000
+      BATCH_SIZE: "50000"
+      BATCH_TIMEOUT_SECS: "5"
+      PYTHONUNBUFFERED: "1"
+    depends_on:
+      - redpanda
+      - minio
+      - api
     restart: on-failure
 
   minio:

@@ -14,7 +14,7 @@ DATASET_PATH = os.getenv(
     str(Path(__file__).parent.parent.parent / "data" / "raw_datasets" / "online_retail_II.xlsx"),
 )
 TOPIC = "retail.events"
-EVENTS_PER_SECOND = 100
+EVENTS_PER_SECOND = int(os.getenv("EVENTS_PER_SECOND", "100"))
 
 COLUMN_RENAME = {
     "Invoice": "invoice",

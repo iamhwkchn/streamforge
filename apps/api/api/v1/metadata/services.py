@@ -39,6 +39,9 @@ async def register_partition_in_db(payload: PartitionPayload):
             """
             INSERT INTO partitions (dataset_id, partition_path, row_count)
             VALUES ($1, $2, $3)
+            ON CONFLICT (partition_path) DO UPDATE
+                SET row_count = EXCLUDED.row_count,
+                    processed_at = NOW()
             """,
             dataset_id,
             payload.partition_path,

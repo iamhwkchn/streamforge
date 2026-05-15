@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS datasets (
 CREATE TABLE IF NOT EXISTS partitions (
     id SERIAL PRIMARY KEY,
     dataset_id UUID REFERENCES datasets(id),
-    partition_path VARCHAR(512) NOT NULL,
+    partition_path VARCHAR(512) UNIQUE NOT NULL,
     row_count INTEGER,
     processed_at TIMESTAMP DEFAULT NOW()
 );
