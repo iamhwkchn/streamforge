@@ -1,4 +1,5 @@
 from uuid import UUID
+import asyncpg
 from .schemas import PartitionPayload, FeaturePayload
 from db.connection import get_db_pool
 
@@ -144,6 +145,42 @@ async def list_features_for_dataset(dataset_id: UUID):
     return [dict(row) for row in rows]
 
 
+async def list_all_features():
+    """
+    Fetches every feature definition across all datasets, joined with the
+    owning dataset's name for display.
+
+    Input: none
+
+    Output (success):
+        list of dicts, each containing:
+            id             (UUID)
+            name           (str)
+            sql_definition (str)  — Trino SQL that computes this feature
+            dataset_id     (UUID)
+            dataset_name   (str)
+            created_at     (datetime)
+
+    Output (error):
+        {"status": "error", "message": str}  — if pool is unavailable
+    """
+    pool = await get_db_pool()
+    if not pool:
+        return {"status": "error", "message": "Database Connection Error"}
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT f.id, f.name, f.sql_definition, f.dataset_id, d.name AS dataset_name, f.created_at
+            FROM features f
+            JOIN datasets d ON d.id = f.dataset_id
+            ORDER BY f.created_at DESC
+            """
+        )
+
+    return [dict(row) for row in rows]
+
+
 async def get_dataset_metrics(dataset_id: UUID):
     pool = await get_db_pool()
     if not pool:
@@ -196,18 +233,48 @@ async def register_feature_in_db(payload: FeaturePayload):
 
         dataset_id = dataset_row['id']
 
-        await conn.execute(
-            """
-            INSERT INTO features (name, sql_definition, dataset_id)
-            VALUES ($1, $2, $3)
-            """,
-            payload.name,
-            payload.sql_definition,
-            dataset_id,
-        )
+        try:
+            await conn.execute(
+                """
+                INSERT INTO features (name, sql_definition, dataset_id)
+                VALUES ($1, $2, $3)
+                """,
+                payload.name,
+                payload.sql_definition,
+                dataset_id,
+            )
+        except asyncpg.UniqueViolationError:
+            return {"status": "error", "message": f"A feature named '{payload.name}' already exists"}
 
     return {
         "status": "success",
         "message": f"Successfully registered feature '{payload.name}' for {payload.dataset_name}",
         "data": payload,
     }
+
+
+async def delete_feature_in_db(feature_id: UUID):
+    """
+    Deletes a feature definition by id.
+
+    Input:
+        feature_id (UUID) — the primary key of the feature to delete
+
+    Output (success):
+        {"status": "success", "message": str}
+
+    Output (error):
+        {"status": "error", "message": str}
+        — if pool is unavailable or feature_id does not exist
+    """
+    pool = await get_db_pool()
+    if not pool:
+        return {"status": "error", "message": "Database Connection Error"}
+
+    async with pool.acquire() as conn:
+        result = await conn.execute("DELETE FROM features WHERE id = $1", feature_id)
+
+    if result == "DELETE 0":
+        return {"status": "error", "message": f"Feature {feature_id} not found"}
+
+    return {"status": "success", "message": f"Deleted feature {feature_id}"}

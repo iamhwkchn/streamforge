@@ -264,3 +264,53 @@ class TestRegisterFeature:
     async def test_missing_required_field_returns_422(self, client):
         resp = await client.post(f"{BASE}/features", json={"name": "incomplete"})
         assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# GET /features
+# ---------------------------------------------------------------------------
+
+class TestListAllFeatures:
+    """GET /api/v1/metadata/features — returns every feature across all datasets."""
+
+    async def test_status_200(self, client):
+        resp = await client.get(f"{BASE}/features")
+        assert resp.status_code == 200
+
+    async def test_includes_dataset_name(self, client):
+        resp = await client.get(f"{BASE}/features")
+        feature = next(f for f in resp.json() if f["name"] == "revenue_by_country")
+        assert feature["dataset_name"] == "retail_events"
+
+
+# ---------------------------------------------------------------------------
+# DELETE /features/{id}
+# ---------------------------------------------------------------------------
+
+class TestDeleteFeature:
+    """DELETE /api/v1/metadata/features/{id} — removes a feature definition."""
+
+    async def test_success_response(self, client, db_pool, retail_events_id):
+        name = "test_feature_to_delete"
+        row = await db_pool.fetchrow(
+            "INSERT INTO features (name, sql_definition, dataset_id) VALUES ($1, $2, $3) RETURNING id",
+            name, "SELECT 1", retail_events_id,
+        )
+        resp = await client.delete(f"{BASE}/features/{row['id']}")
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "success"
+
+    async def test_row_is_removed_from_db(self, client, db_pool, retail_events_id):
+        name = "test_feature_to_delete_check"
+        row = await db_pool.fetchrow(
+            "INSERT INTO features (name, sql_definition, dataset_id) VALUES ($1, $2, $3) RETURNING id",
+            name, "SELECT 1", retail_events_id,
+        )
+        await client.delete(f"{BASE}/features/{row['id']}")
+        check = await db_pool.fetchrow("SELECT id FROM features WHERE id = $1", row["id"])
+        assert check is None
+
+    async def test_error_on_unknown_id(self, client):
+        resp = await client.delete(f"{BASE}/features/{UNKNOWN_UUID}")
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "error"

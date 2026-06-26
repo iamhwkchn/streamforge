@@ -2,7 +2,9 @@ from uuid import UUID
 from fastapi import APIRouter
 from api.v1.metadata.schemas import FeaturePayload, PartitionPayload
 from api.v1.metadata.services import (
+    delete_feature_in_db,
     get_dataset_metrics,
+    list_all_features,
     list_datasets,
     list_features_for_dataset,
     list_partitions_for_dataset,
@@ -79,6 +81,22 @@ async def get_features(dataset_id: UUID):
     return await list_features_for_dataset(dataset_id)
 
 
+@router.get("/features", summary="List all features")
+async def get_all_features():
+    """
+    Returns every feature definition across all datasets.
+
+    Response: list of
+        - id             (UUID)
+        - name           (str)  — feature name
+        - sql_definition (str)  — Trino SQL that computes this feature
+        - dataset_id     (UUID)
+        - dataset_name   (str)  — name of the owning dataset
+        - created_at     (datetime)
+    """
+    return await list_all_features()
+
+
 @router.post("/partitions", summary="Register a partition")
 async def register_partition(payload: PartitionPayload):
     """
@@ -115,3 +133,18 @@ async def register_feature(payload: FeaturePayload):
         - data    (FeaturePayload echo)
     """
     return await register_feature_in_db(payload)
+
+
+@router.delete("/features/{feature_id}", summary="Delete a feature definition")
+async def delete_feature(feature_id: UUID):
+    """
+    Deletes a feature definition from the catalog.
+
+    Path param:
+        - feature_id (UUID) — the feature to delete
+
+    Response:
+        - status  (str)
+        - message (str)
+    """
+    return await delete_feature_in_db(feature_id)
