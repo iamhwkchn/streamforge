@@ -17,11 +17,11 @@
 **Goal:** Data is seeded into MinIO as Parquet, queryable via Trino, browsable in the UI. Metadata catalog fully operational.
 
 **Definition of Done:**
-- [ ] `docker compose up` starts all services cleanly
+- [x] `docker compose up` starts all services cleanly
 - [x] Bootstrap script seeds Parquet partitions into MinIO
-- [ ] Trino returns SQL results against lake data
-- [ ] API serves dataset, partition, and feature metadata
-- [ ] UI displays datasets and executes a SQL query
+- [x] Trino returns SQL results against lake data
+- [x] API serves dataset, partition, and feature metadata
+- [x] UI displays datasets and executes a SQL query
 
 ---
 
@@ -41,8 +41,8 @@
 ---
 
 ### Epic S1-E2 — Bootstrap Lake Script
-**Size:** S (nearly done, one task remaining)
-**Status:** Partially Done
+**Size:** S
+**Status:** Done
 
 | # | Task | Size | Status |
 |---|---|---|---|
@@ -50,60 +50,60 @@
 | S1-E2-T2 | Partition data by year/month | S | Done |
 | S1-E2-T3 | Write partitioned Parquet files to MinIO | S | Done |
 | S1-E2-T4 | Register dataset in Postgres catalog | S | Done (via 02_seeding.sql) |
-| S1-E2-T5 | Call `POST /partitions` per partition after MinIO write | S | To Do |
+| S1-E2-T5 | Call `POST /partitions` per partition after MinIO write | S | Done |
 
 ---
 
 ### Epic S1-E3 — Seed Feature Definitions
 **Size:** S
-**Status:** Partially Done
+**Status:** Done
 
 | # | Task | Size | Status |
 |---|---|---|---|
 | S1-E3-T1 | Seed `revenue_by_country` feature in Postgres | S | Done (via 02_seeding.sql) |
 | S1-E3-T2 | Seed `top_customers_spend` feature in Postgres | S | Done (via 02_seeding.sql) |
 | S1-E3-T3 | Seed `daily_order_volume` feature in Postgres | S | Done (via 02_seeding.sql) |
-| S1-E3-T4 | Validate feature SQL definitions execute correctly in Trino | S | To Do |
+| S1-E3-T4 | Validate feature SQL definitions execute correctly in Trino | S | Done (via apps/scripts/init_trino.py) |
 
 ---
 
 ### Epic S1-E4 — Trino SQL Engine Setup
 **Size:** M (1 weekend)
-**Status:** To Do
+**Status:** Done
 **Depends on:** MinIO with Parquet data (S1-E2 done)
 
 | # | Task | Size | Status |
 |---|---|---|---|
-| S1-E4-T1 | Configure Trino Hive/file connector for MinIO | M | To Do |
-| S1-E4-T2 | Validate Trino can list and query Parquet partitions | S | To Do |
-| S1-E4-T3 | Verify 3 seeded feature SQL queries return results | S | To Do |
+| S1-E4-T1 | Configure Trino Hive/file connector for MinIO | M | Done |
+| S1-E4-T2 | Validate Trino can list and query Parquet partitions | S | Done |
+| S1-E4-T3 | Verify 3 seeded feature SQL queries return results | S | Done |
 
 ---
 
 ### Epic S1-E5 — FastAPI Query Endpoint
 **Size:** S (half weekend)
-**Status:** To Do
+**Status:** Done
 **Depends on:** Trino running, S1-E1 done
 
 | # | Task | Size | Status |
 |---|---|---|---|
-| S1-E5-T1 | `POST /api/v1/query` — execute SQL via Trino, return results | S | To Do |
-| S1-E5-T2 | Error handling for bad SQL and Trino connection failures | S | To Do |
+| S1-E5-T1 | `POST /api/v1/query` — execute SQL via Trino, return results | S | Done |
+| S1-E5-T2 | Error handling for bad SQL and Trino connection failures | S | Done |
 
 ---
 
 ### Epic S1-E6 — SvelteKit Frontend (Phase 1)
 **Size:** L → 2 weekends
-**Status:** To Do
+**Status:** Done
 **Depends on:** S1-E1, S1-E5 done
 
 | # | Task | Size | Status |
 |---|---|---|---|
-| S1-E6-T1 | Project setup: SvelteKit + Vite + TailwindCSS | S | To Do |
-| S1-E6-T2 | Dataset browser page — list datasets from API | S | To Do |
-| S1-E6-T3 | Dataset detail page — schema + partition list + feature list | S | To Do |
-| S1-E6-T4 | SQL query editor — textarea + run button + results table | M | To Do |
-| S1-E6-T5 | Feature registry page — list and preview feature definitions | S | To Do |
+| S1-E6-T1 | Project setup: SvelteKit + Vite + TailwindCSS | S | Done |
+| S1-E6-T2 | Dataset browser page — list datasets from API | S | Done |
+| S1-E6-T3 | Dataset detail page — schema + partition list + feature list | S | Done |
+| S1-E6-T4 | SQL query editor — textarea + run button + results table | M | Done |
+| S1-E6-T5 | Feature registry page — list and preview feature definitions | S | Done |
 
 ---
 
@@ -113,52 +113,52 @@
 **Goal:** Live data flows from CSV producer through Redpanda into MinIO as Parquet in real time. Partitions auto-register. UI shows ingestion metrics.
 
 **Definition of Done:**
-- [ ] Producer publishes CSV rows to Redpanda topic `retail.events`
-- [ ] Consumer reads, validates, enriches, and micro-batches records
-- [ ] Consumer writes Parquet to MinIO and registers partition via API
-- [ ] UI shows live partition count and last ingestion timestamp
+- [x] Producer publishes CSV rows to Redpanda topic `retail.events`
+- [x] Consumer reads, validates, enriches, and micro-batches records
+- [x] Consumer writes Parquet to MinIO and registers partition via API
+- [x] UI shows live partition count and last ingestion timestamp
 
 ---
 
 ### Epic S2-E1 — Kafka Producer
 **Size:** M (1 weekend)
-**Status:** To Do (stub exists, logic not implemented)
+**Status:** Done
 **Depends on:** Redpanda running
 
 | # | Task | Size | Status |
 |---|---|---|---|
-| S2-E1-T1 | Read Online Retail II XLSX row by row with Polars | S | To Do |
-| S2-E1-T2 | Publish each row as a JSON event to `retail.events` Redpanda topic | S | To Do |
-| S2-E1-T3 | Configurable publish rate to simulate hourly extract | S | To Do |
-| S2-E1-T4 | Producer startup logging and error handling | S | To Do |
+| S2-E1-T1 | Read Online Retail II XLSX row by row with Polars | S | Done |
+| S2-E1-T2 | Publish each row as a JSON event to `retail.events` Redpanda topic | S | Done |
+| S2-E1-T3 | Configurable publish rate to simulate hourly extract | S | Done |
+| S2-E1-T4 | Producer startup logging and error handling | S | Done |
 
 ---
 
 ### Epic S2-E2 — Stream Consumer
 **Size:** L → 2 weekends
-**Status:** To Do (stub exists, logic not implemented)
+**Status:** Done
 **Depends on:** S2-E1 done, MinIO running, S1-E1 done
 
 | # | Task | Size | Status |
 |---|---|---|---|
-| S2-E2-T1 | Connect consumer to Redpanda and poll `retail.events` | S | To Do |
-| S2-E2-T2 | Validate and enrich records (type casting, null checks) | S | To Do |
-| S2-E2-T3 | Micro-batch records by configurable batch size or time window | M | To Do |
-| S2-E2-T4 | Write each micro-batch as a Parquet file to MinIO | S | To Do |
-| S2-E2-T5 | Register partition via `POST /api/v1/partitions` after each write | S | To Do |
-| S2-E2-T6 | Consumer offset commit and crash recovery | S | To Do |
+| S2-E2-T1 | Connect consumer to Redpanda and poll `retail.events` | S | Done |
+| S2-E2-T2 | Validate and enrich records (type casting, null checks) | S | Done |
+| S2-E2-T3 | Micro-batch records by configurable batch size or time window | M | Done |
+| S2-E2-T4 | Write each micro-batch as a Parquet file to MinIO | S | Done |
+| S2-E2-T5 | Register partition via `POST /api/v1/partitions` after each write | S | Done |
+| S2-E2-T6 | Consumer offset commit and crash recovery | S | Done |
 
 ---
 
 ### Epic S2-E3 — Ingestion Metrics in UI
 **Size:** S (half weekend)
-**Status:** To Do
+**Status:** Done
 **Depends on:** S2-E1, S2-E2, S1-E6 done
 
 | # | Task | Size | Status |
 |---|---|---|---|
-| S2-E3-T1 | `GET /api/v1/datasets/{id}/metrics` — partition count, last ingested at, total rows | S | To Do |
-| S2-E3-T2 | Metrics panel on dataset detail page in SvelteKit | S | To Do |
+| S2-E3-T1 | `GET /api/v1/datasets/{id}/metrics` — partition count, last ingested at, total rows | S | Done |
+| S2-E3-T2 | Metrics panel on dataset detail page in SvelteKit | S | Done |
 
 ---
 

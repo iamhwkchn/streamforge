@@ -1,5 +1,7 @@
+import logging
 import os
 import json
+import signal
 import time
 import sys
 from pathlib import Path
@@ -7,6 +9,12 @@ from pathlib import Path
 import polars as pl
 from kafka import KafkaProducer
 from kafka.errors import NoBrokersAvailable
+
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO"),
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger("streamforge.producer")
 
 REDPANDA_BROKERS = os.getenv("REDPANDA_BROKERS", "localhost:9092")
 DATASET_PATH = os.getenv(
@@ -27,9 +35,17 @@ COLUMN_RENAME = {
     "Country": "country",
 }
 
+_shutdown_requested = False
+
+
+def _request_shutdown(signum, _frame):
+    global _shutdown_requested
+    logger.info("Received signal %s — finishing current row and shutting down ...", signal.Signals(signum).name)
+    _shutdown_requested = True
+
 
 def load_dataset(path: str) -> list[dict]:
-    print(f"Loading dataset from {path} ...")
+    logger.info("Loading dataset from %s ...", path)
     import openpyxl
 
     wb = openpyxl.load_workbook(path, read_only=True)
@@ -55,18 +71,21 @@ def load_dataset(path: str) -> list[dict]:
         frames.append(df)
 
     full = pl.concat(frames).sort("invoice_date")
-    print(f"Loaded {len(full):,} rows, sorted by invoice_date ascending.")
+    logger.info("Loaded %s rows, sorted by invoice_date ascending.", f"{len(full):,}")
     return full.to_dicts()
 
 
 def main():
+    signal.signal(signal.SIGINT, _request_shutdown)
+    signal.signal(signal.SIGTERM, _request_shutdown)
+
     if not Path(DATASET_PATH).exists():
-        print(f"ERROR: Dataset not found at {DATASET_PATH}")
+        logger.error("Dataset not found at %s", DATASET_PATH)
         sys.exit(1)
 
     rows = load_dataset(DATASET_PATH)
 
-    print(f"Connecting to Redpanda at {REDPANDA_BROKERS} ...")
+    logger.info("Connecting to Redpanda at %s ...", REDPANDA_BROKERS)
     try:
         producer = KafkaProducer(
             bootstrap_servers=REDPANDA_BROKERS,
@@ -74,27 +93,34 @@ def main():
             retries=3,
         )
     except NoBrokersAvailable:
-        print(f"ERROR: Could not connect to Redpanda at {REDPANDA_BROKERS}. Is it running?")
+        logger.error("Could not connect to Redpanda at %s. Is it running?", REDPANDA_BROKERS)
         sys.exit(1)
 
-    print(f"Publishing {len(rows):,} events to '{TOPIC}' at {EVENTS_PER_SECOND} events/sec ...")
+    logger.info("Publishing %s events to '%s' at %s events/sec ...", f"{len(rows):,}", TOPIC, EVENTS_PER_SECOND)
     delay = 1.0 / EVENTS_PER_SECOND
 
+    published = 0
     for i, row in enumerate(rows, start=1):
+        if _shutdown_requested:
+            logger.warning("Shutdown requested — stopping after %s / %s events.", f"{published:,}", f"{len(rows):,}")
+            break
+
         try:
             producer.send(TOPIC, value=row)
+            published = i
         except Exception as e:
-            print(f"  [row {i}] Send error: {e}")
+            logger.error("[row %s] Send error: %s", i, e)
             continue
 
         if i % 1000 == 0:
             producer.flush()
-            print(f"  Published {i:,} / {len(rows):,} events")
+            logger.info("Published %s / %s events", f"{i:,}", f"{len(rows):,}")
 
         time.sleep(delay)
 
     producer.flush()
-    print(f"Done. Published {len(rows):,} events to '{TOPIC}'.")
+    producer.close()
+    logger.info("Done. Published %s events to '%s'.", f"{published:,}", TOPIC)
 
 
 if __name__ == "__main__":
