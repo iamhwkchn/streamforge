@@ -169,23 +169,16 @@ Pack multiple rows into a single JSON array per Kafka message.
 
 ## 7. Running the Pipeline
 
+`producer`/`consumer` are gated behind the Compose `ingest` profile specifically so the platform (`make up`) and ingestion (`make ingest`) can be started, stopped, and restarted independently — see [Makefile](../Makefile) and the profile note in [CLAUDE.md](../CLAUDE.md).
+
 ### Fresh start (recommended)
 ```bash
-# 1. Wipe Postgres data and MinIO data
-rm -rf data/postgres data/minio
-
-# 2. Start infrastructure
-docker compose -f ops/docker/docker-compose.yml up -d redpanda minio postgres api trino redpanda-console
-
-# 3. Replay events
-docker compose -f ops/docker/docker-compose.yml up -d producer
-
-# 4. Start consumer
-docker compose -f ops/docker/docker-compose.yml up -d consumer
-
-# 5. Watch progress
-docker logs consumer -f
+make up       # platform: redpanda, minio, postgres, trino, api, web, redpanda-console
+make ingest   # starts producer + consumer, streams the dataset in
+make logs-ingest   # watch progress
 ```
+
+Re-running `make ingest` at any point replays the dataset again — safe, since the consumer's read-merge-dedup write path makes re-ingestion idempotent (see §4.3).
 
 ### Verify
 ```bash
@@ -202,5 +195,5 @@ curl http://localhost:8000/api/v1/metadata/datasets/{id}/partitions
 
 ### Wind down
 ```bash
-docker compose -f ops/docker/docker-compose.yml down
+make down   # stops the platform and ingestion together
 ```

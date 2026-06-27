@@ -27,6 +27,7 @@ services:
       - redpanda
 
   producer:
+    profiles: ["ingest"]
     build:
       context: ../../apps/ingest
       dockerfile: Dockerfile
@@ -42,6 +43,7 @@ services:
     restart: on-failure
 
   consumer:
+    profiles: ["ingest"]
     build:
       context: ../../apps/ingest
       dockerfile: Dockerfile
@@ -58,9 +60,12 @@ services:
       BATCH_TIMEOUT_SECS: "5"
       PYTHONUNBUFFERED: "1"
     depends_on:
-      - redpanda
-      - minio
-      - api
+      redpanda:
+        condition: service_started
+      minio:
+        condition: service_started
+      api:
+        condition: service_healthy
     restart: on-failure
 
   minio:
@@ -88,6 +93,11 @@ services:
     volumes:
       - ../../data/postgres:/var/lib/postgresql/data
       - ../../ops/postgres:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U admin -d streamforge" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   trino:
     image: trinodb/trino:432
@@ -119,8 +129,16 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      - postgres
-      - trino
+      postgres:
+        condition: service_healthy
+      trino:
+        condition: service_healthy
+    restart: on-failure
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   web:
     build:
@@ -130,4 +148,5 @@ services:
     ports:
       - "3000:80"
     depends_on:
-      - api
+      api:
+        condition: service_healthy

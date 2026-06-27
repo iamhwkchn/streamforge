@@ -40,20 +40,40 @@ Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/) (runn
 ```bash
 git clone https://github.com/iamhwkchn/streamforge.git
 cd streamforge
-make up      # downloads the dataset, builds and starts all 8 services
+make up       # downloads the dataset, builds and starts the platform (7 services)
+make ingest   # starts the producer + consumer and streams the dataset in
 ```
 
-Then open **http://localhost:3000**. The producer and consumer start streaming immediately — refresh the dataset detail page after a few seconds to watch partitions and row counts climb in real time.
+Then open **http://localhost:3000**.
+
+`make up` only starts the persistent platform — Redpanda, MinIO, Postgres, Trino, the API, the UI, and Redpanda Console. It deliberately does **not** start ingestion, so stopping and restarting the stack (`make down` then `make up`) is fast and never re-publishes data you already have. `make ingest` is the explicit, repeatable trigger for the producer/consumer — run it the first time to populate the lake, and run it again any time you want to replay the dataset (e.g. after `make clean`, or just to watch it stream again).
 
 Other useful commands:
 
 ```bash
-make ps      # check service status
-make logs    # tail logs from every service
-make test    # run the API and ingestion test suites
-make down    # stop everything
-make clean   # stop and wipe all persisted data (Postgres, MinIO, Trino catalog)
+make ps           # check service status
+make logs         # tail platform logs
+make logs-ingest  # tail producer/consumer logs
+make test         # run the API and ingestion test suites
+make down         # stop everything (including ingestion, if running)
+make clean        # stop and wipe all persisted data (Postgres, MinIO, Trino catalog)
 ```
+
+### Tracking ingestion
+
+`make ingest` prints where to look when it starts. The dataset is ~1M rows and streams in over a couple of minutes (10,000 events/sec by default in Docker Compose):
+
+| Where | What you'll see |
+| --- | --- |
+| `make logs-ingest` | Producer: `Published 42,000 / 1,067,371 events`. Consumer: each micro-batch's partition writes. |
+| **http://localhost:3000** → Datasets → `retail_events` | Partition count, total rows, and last-ingested timestamp — refresh to watch them climb. |
+| **http://localhost:8082** (Redpanda Console) → Topics → `retail.events` | Live message count and individual JSON events, as they land in Kafka. |
+
+| Live ingestion metrics in the UI | Live messages in Redpanda Console |
+| --- | --- |
+| ![Ingestion metrics](docs/assets/ingestion-metrics.png) | ![Redpanda Console](docs/assets/redpanda-console.png) |
+
+Ingestion is "done" when the producer logs `Done. Published 1,067,371 events` and exits — the consumer keeps running (it's a long-poll loop), so check that its lag has caught up to 0 rather than waiting for it to exit too.
 
 ## Tech stack
 

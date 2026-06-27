@@ -14,12 +14,15 @@ A fully local streaming lakehouse: Kafka-style ingestion (Redpanda) → Parquet 
 ## Running it
 
 ```bash
-make up      # downloads the dataset (if missing) and starts the full stack
-make test    # runs apps/api and apps/ingest pytest suites
-make logs    # tail all service logs
-make down    # stop everything
-make clean   # stop and wipe persisted Postgres/MinIO/Trino state
+make up           # downloads the dataset (if missing) and starts the platform (no ingestion)
+make ingest       # starts producer + consumer (the "ingest" Compose profile) — repeatable
+make test         # runs apps/api and apps/ingest pytest suites
+make logs         # tail platform logs; make logs-ingest for producer/consumer
+make down         # stop everything, including ingestion if running
+make clean        # stop and wipe persisted Postgres/MinIO/Trino state
 ```
+
+`producer`/`consumer` are gated behind the Compose `ingest` profile (see `ops/docker/docker-compose.yml`) specifically so `make up`/`make down` cycles never silently re-trigger a full dataset replay — that's an explicit, separate action via `make ingest`. If you add a Compose target that needs to reliably stop/list ingestion containers too, route it through `--profile ingest` (see `COMPOSE_ALL` in the `Makefile`) — plain `docker compose down` does not touch services gated behind a profile that wasn't activated, even if they're currently running.
 
 See the `Makefile` for the exact commands each target runs — don't duplicate them here, they'll drift.
 
