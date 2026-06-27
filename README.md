@@ -8,7 +8,7 @@ Modern data platforms combine Kafka-style event streams, object storage data lak
 
 > upstream system → streaming ingestion → Parquet data lake → SQL query engine → feature registry & analytics UI
 
-StreamForge recreates that path end-to-end using open-source tools, seeded with real transactional data (the [UCI Online Retail II](https://archive.ics.uci.edu/dataset/502/online+retail+ii) dataset), so you can see — and query — every stage of the pipeline. See [idea.md](idea.md) for the full design rationale.
+StreamForge recreates that path end-to-end using open-source tools, seeded with real transactional data (the [UCI Online Retail II](https://archive.ics.uci.edu/dataset/502/online+retail+ii) dataset), so you can see — and query — every stage of the pipeline. See [idea.md](docs/idea.md) for the full design rationale.
 
 ## Architecture
 
@@ -118,7 +118,7 @@ Full breakdown in [pmo/roadmap.md](pmo/roadmap.md).
 
 ## Further reading
 
-- [idea.md](idea.md) — full problem statement, goals, and architecture rationale
+- [idea.md](docs/idea.md) — full problem statement, goals, and architecture rationale
 - [pmo/charter.md](pmo/charter.md) — project scope and success criteria
 - [pmo/adr/](pmo/adr/) — architecture decision records (why Redpanda over Kafka, Trino over Spark, etc.)
 - [docs/metadata_catalog.md](docs/metadata_catalog.md) — catalog schema and registration flow

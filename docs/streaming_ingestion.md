@@ -169,7 +169,7 @@ Pack multiple rows into a single JSON array per Kafka message.
 
 ## 7. Running the Pipeline
 
-`producer`/`consumer` are gated behind the Compose `ingest` profile specifically so the platform (`make up`) and ingestion (`make ingest`) can be started, stopped, and restarted independently — see [Makefile](../Makefile) and the profile note in [CLAUDE.md](../CLAUDE.md).
+`producer`/`consumer` are gated behind the Compose `ingest` profile specifically so the platform (`make up`) and ingestion (`make ingest`) can be started, stopped, and restarted independently — see [Makefile](../Makefile) and the profile note in [AGENTS.md](../AGENTS.md).
 
 ### Fresh start (recommended)
 ```bash

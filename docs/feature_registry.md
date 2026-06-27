@@ -61,7 +61,7 @@ sequenceDiagram
 
 ### 4.1. Save
 
-`POST /api/v1/metadata/features` ([router.py](../apps/api/api/v1/metadata/router.py) → `register_feature_in_db` in [services.py](../apps/api/api/v1/metadata/services.py)) resolves `dataset_name` to a `dataset_id` and inserts. Two handled failure cases, both returned as `{"status": "error", "message": ...}` with HTTP `200` (not a 4xx — see the error-shape convention in [CLAUDE.md](../CLAUDE.md)):
+`POST /api/v1/metadata/features` ([router.py](../apps/api/api/v1/metadata/router.py) → `register_feature_in_db` in [services.py](../apps/api/api/v1/metadata/services.py)) resolves `dataset_name` to a `dataset_id` and inserts. Two handled failure cases, both returned as `{"status": "error", "message": ...}` with HTTP `200` (not a 4xx — see the error-shape convention in [AGENTS.md](../AGENTS.md)):
 
 - **Unknown dataset** — `dataset_name` doesn't match any row in `datasets`.
 - **Duplicate name** — `features.name` has a `UNIQUE NOT NULL` constraint; the insert is wrapped in `try/except asyncpg.UniqueViolationError` to turn a raw DB error into a clean message rather than a 500.

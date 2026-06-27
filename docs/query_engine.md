@@ -121,4 +121,4 @@ This distinction matters to the caller: a `400` means "fix your SQL," a `503` me
 | `TRINO_CATALOG` | `minio` | Default catalog (see [ops/trino/etc/catalog/minio.properties](../ops/trino/etc/catalog/minio.properties)) |
 | `TRINO_SCHEMA` | `retail` | Default schema |
 
-These are read once into `core/config.py:Settings` at process startup; the same pattern used by `apps/ingest` for its own env vars (see the note in [CLAUDE.md](../CLAUDE.md) about module-level constants and why tests must patch the constant, not `os.environ`, after import).
+These are read once into `core/config.py:Settings` at process startup; the same pattern used by `apps/ingest` for its own env vars (see the note in [AGENTS.md](../AGENTS.md) about module-level constants and why tests must patch the constant, not `os.environ`, after import).

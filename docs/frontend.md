@@ -43,7 +43,7 @@ All three routes share one `+layout.svelte` — a fixed left sidebar (Datasets /
 
 ### 4.1. `lib/api.ts` — the only HTTP boundary
 
-A single `request<T>(path, init)` helper wraps `fetch`, prefixes `/api/v1`, and throws `Error(detail)` on a non-2xx response. Every exported function (`getDatasets`, `getPartitions`, `getFeatures`, `getAllFeatures`, `getMetrics`, `runQuery`, `createFeature`, `deleteFeature`) is a thin call through it. Two of these — `createFeature` and `deleteFeature` — additionally inspect a `200`-with-`{"status": "error"}` body and re-throw, because the metadata API returns handled errors (unknown dataset, duplicate name, not found) as `200` rather than a 4xx — see the convention note in [CLAUDE.md](../CLAUDE.md).
+A single `request<T>(path, init)` helper wraps `fetch`, prefixes `/api/v1`, and throws `Error(detail)` on a non-2xx response. Every exported function (`getDatasets`, `getPartitions`, `getFeatures`, `getAllFeatures`, `getMetrics`, `runQuery`, `createFeature`, `deleteFeature`) is a thin call through it. Two of these — `createFeature` and `deleteFeature` — additionally inspect a `200`-with-`{"status": "error"}` body and re-throw, because the metadata API returns handled errors (unknown dataset, duplicate name, not found) as `200` rather than a 4xx — see the convention note in [AGENTS.md](../AGENTS.md).
 
 Routes never read `fetch` or `/api/v1` directly. If a new endpoint is needed, it gets a typed function here first.
 
