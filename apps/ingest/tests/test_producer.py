@@ -89,7 +89,10 @@ class TestMain:
         return m
 
     def test_exits_when_file_not_found(self):
-        with patch.dict("os.environ", {"DATASET_PATH": "/does/not/exist.xlsx"}):
+        # DATASET_PATH is read once at import time as a module constant, so
+        # patching os.environ here has no effect on it — patch the constant
+        # itself instead, or main() falls through to a real Redpanda publish.
+        with patch.object(prod, "DATASET_PATH", "/does/not/exist.xlsx"):
             with pytest.raises(SystemExit) as exc:
                 prod.main()
         assert exc.value.code == 1
