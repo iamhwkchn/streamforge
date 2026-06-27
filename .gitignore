@@ -16,6 +16,10 @@ build/
 # Docker
 .docker_data/
 
+# IDE (personal, machine-specific)
+.vscode/
+.claude/
+
 
 # Data Persistence (Local Lakehouse State)
 data/minio/
