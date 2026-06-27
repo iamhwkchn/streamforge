@@ -103,6 +103,9 @@ Full breakdown in [pmo/roadmap.md](pmo/roadmap.md).
 - [pmo/adr/](pmo/adr/) — architecture decision records (why Redpanda over Kafka, Trino over Spark, etc.)
 - [docs/metadata_catalog.md](docs/metadata_catalog.md) — catalog schema and registration flow
 - [docs/streaming_ingestion.md](docs/streaming_ingestion.md) — producer/consumer design, crash recovery, idempotency
+- [docs/query_engine.md](docs/query_engine.md) — Trino execution path, the read-only SQL guard, pagination
+- [docs/frontend.md](docs/frontend.md) — SvelteKit routes, API client, UI workflows
+- [docs/feature_registry.md](docs/feature_registry.md) — save/list/run/delete lifecycle for named SQL features
 
 ## License
 

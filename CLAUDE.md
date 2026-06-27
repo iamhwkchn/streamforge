@@ -30,6 +30,15 @@ See the `Makefile` for the exact commands each target runs — don't duplicate t
 - **Ingestion crash-safety.** `apps/ingest/consumer.py` disables Kafka auto-commit and only commits offsets after a batch's Parquet write *and* partition registration both succeed (`enable_auto_commit=False`, manual `consumer.commit()`). Partitions are read-merge-deduped (`.unique()`) on every write, which is what makes re-processing after a crash safe. Don't "simplify" this into an unconditional commit.
 - **Structured logging in ingest.** `producer.py` and `consumer.py` use the stdlib `logging` module, not `print`. Keep new ingest code consistent with that.
 - **Tests run against a real Postgres**, not mocks — `apps/api/tests` and `apps/ingest/tests` expect the Docker stack (or at least Postgres) to be up. See the docstring at the top of `apps/api/tests/test_metadata.py`.
+- **Env vars are read once, at import, into module-level constants** in both `apps/ingest/producer.py` and `apps/api/core/config.py` — they are not re-read inside functions. A test that does `patch.dict("os.environ", {...})` after import has no effect on code that references the already-bound constant; patch the constant itself (`patch.object(module, "CONST", value)`). `test_exits_when_file_not_found` in `apps/ingest/tests/test_producer.py` got this wrong and silently fell through to publishing the full real dataset to a live Redpanda broker — fixed, but a reminder this pattern bites easily.
+
+## Further reading
+
+- [docs/metadata_catalog.md](docs/metadata_catalog.md) — Postgres catalog schema and registration flow
+- [docs/streaming_ingestion.md](docs/streaming_ingestion.md) — producer/consumer design, crash recovery, idempotency
+- [docs/query_engine.md](docs/query_engine.md) — Trino execution path, the read-only SQL guard, pagination
+- [docs/frontend.md](docs/frontend.md) — SvelteKit routes, API client, UI workflows
+- [docs/feature_registry.md](docs/feature_registry.md) — save/list/run/delete lifecycle for named SQL features
 
 ## Project status
 
